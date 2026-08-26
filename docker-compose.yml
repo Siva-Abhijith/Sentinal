@@ -1,0 +1,23 @@
+services:
+  valkey:
+    image: valkey/valkey:9.1  
+
+  api1:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      REDIS_HOST: valkey
+      REDIS_PORT: 6379
+    depends_on:
+      - valkey
+
+  api2:
+    build: .
+    ports:
+      - "8001:8000"
+    environment:
+      REDIS_HOST: valkey
+      REDIS_PORT: 6379
+    depends_on:
+      - valkey
