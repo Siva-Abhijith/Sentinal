@@ -1,3 +1,4 @@
+import os
 from time import perf_counter
 
 from fastapi import FastAPI, Request
@@ -7,12 +8,15 @@ from redis.exceptions import RedisError
 
 from app.lua_rate_limiter import LuaRateLimiter
 
+
 app = FastAPI()
 
+
 rate_limiter = LuaRateLimiter(
-    capacity=5,
-    refill_rate=1,
+    capacity=float(os.getenv("RATE_LIMIT_CAPACITY", "5")),
+    refill_rate=float(os.getenv("RATE_LIMIT_REFILL_RATE", "1")),
 )
+
 
 requests_total = Counter(
     "sentinel_requests_total",
@@ -43,7 +47,7 @@ responses_total = Counter(
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    if request.url.path == "/metrics":
+    if request.url.path in {"/health", "/metrics"}:
         return await call_next(request)
 
     start = perf_counter()
@@ -68,6 +72,7 @@ async def rate_limit_middleware(request: Request, call_next):
             return JSONResponse(
                 status_code=429,
                 content={"detail": "Too Many Requests"},
+                headers={"Retry-After": "1"},
             )
 
         response = await call_next(request)
@@ -82,6 +87,11 @@ async def rate_limit_middleware(request: Request, call_next):
 @app.get("/")
 async def home():
     return {"message": "Sentinel is running"}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 @app.get("/metrics")

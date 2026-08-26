@@ -1,6 +1,11 @@
 services:
   valkey:
-    image: valkey/valkey:9.1  
+    image: valkey/valkey:9.1
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   api1:
     build: .
@@ -9,8 +14,11 @@ services:
     environment:
       REDIS_HOST: valkey
       REDIS_PORT: 6379
+      RATE_LIMIT_CAPACITY: 5
+      RATE_LIMIT_REFILL_RATE: 1
     depends_on:
-      - valkey
+      valkey:
+        condition: service_healthy
 
   api2:
     build: .
@@ -19,5 +27,8 @@ services:
     environment:
       REDIS_HOST: valkey
       REDIS_PORT: 6379
+      RATE_LIMIT_CAPACITY: 5
+      RATE_LIMIT_REFILL_RATE: 1
     depends_on:
-      - valkey
+      valkey:
+        condition: service_healthy
