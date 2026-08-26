@@ -1,0 +1,67 @@
+[1mdiff --git a/app/main.py b/app/main.py[m
+[1mindex daa046a..7cf6283 100644[m
+[1m--- a/app/main.py[m
+[1m+++ b/app/main.py[m
+[36m@@ -1,5 +1,6 @@[m
+ from fastapi import FastAPI, Request[m
+ from fastapi.responses import JSONResponse[m
+[32m+[m[32mfrom redis.exceptions import RedisError[m
+ [m
+ from app.lua_rate_limiter import LuaRateLimiter[m
+ [m
+[36m@@ -15,7 +16,15 @@[m [mrate_limiter = LuaRateLimiter([m
+ async def rate_limit_middleware(request: Request, call_next):[m
+     client_id = request.client.host[m
+ [m
+[31m-    if not rate_limiter.allow(client_id):[m
+[32m+[m[32m    try:[m
+[32m+[m[32m        allowed = rate_limiter.allow(client_id)[m
+[32m+[m[32m    except RedisError:[m
+[32m+[m[32m        return JSONResponse([m
+[32m+[m[32m            status_code=503,[m
+[32m+[m[32m            content={"detail": "Rate limiter unavailable"},[m
+[32m+[m[32m        )[m
+[32m+[m
+[32m+[m[32m    if not allowed:[m
+         return JSONResponse([m
+             status_code=429,[m
+             content={"detail": "Too Many Requests"},[m
+[36m@@ -26,4 +35,4 @@[m [masync def rate_limit_middleware(request: Request, call_next):[m
+ [m
+ @app.get("/")[m
+ async def home():[m
+[31m-    return {"message": "Sentinel is running"}[m
+[32m+[m[32m    return {"message": "Sentinel is running"}[m
+\ No newline at end of file[m
+[1mdiff --git a/app/redis_client.py b/app/redis_client.py[m
+[1mindex 7c5e970..a21c31b 100644[m
+[1m--- a/app/redis_client.py[m
+[1m+++ b/app/redis_client.py[m
+[36m@@ -1,10 +1,15 @@[m
+ import os[m
+ [m
+ import redis[m
+[32m+[m[32mfrom redis.backoff import NoBackoff[m
+[32m+[m[32mfrom redis.retry import Retry[m
+ [m
+ [m
+ redis_client = redis.Redis([m
+     host=os.getenv("REDIS_HOST", "localhost"),[m
+     port=int(os.getenv("REDIS_PORT", "6379")),[m
+     decode_responses=True,[m
+[31m-)[m
+[32m+[m[32m    socket_connect_timeout=1,[m
+[32m+[m[32m    socket_timeout=1,[m
+[32m+[m[32m    retry=Retry(NoBackoff(), 0),[m
+[32m+[m[32m)[m
+\ No newline at end of file[m
+[1mdiff --git a/requirements.txt b/requirements.txt[m
+[1mindex 8fa32f1..40de026 100644[m
+[1m--- a/requirements.txt[m
+[1m+++ b/requirements.txt[m
+[36m@@ -17,3 +17,5 @@[m [mtyping-inspection==0.4.4[m
+ typing_extensions==4.16.0[m
+ uvicorn==0.52.4[m
+ redis==8.1.0[m
+[32m+[m[32mhttpx2==2.12.0[m
+[32m+[m[32mlocust==2.46.4[m
